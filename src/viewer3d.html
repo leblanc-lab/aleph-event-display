@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ALEPH event display</title>
+<style>
+:root{--bg:#07080C;--fg:#ECECF2;--muted:#80869A;--panel:rgba(16,18,26,.82);--line:#2A2F40;--track:#B3A6FF;--v0:#3FD2F2;--em:#FF4D9B;--hc:#FFB52E}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#c{position:fixed;top:0;left:0;width:100vw;height:100vh;display:block;touch-action:none}
+.panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px)}
+#head{top:14px;left:14px;max-width:min(440px,calc(100vw - 28px))}
+#head h1{font-size:16px;margin:0 0 2px;font-weight:700;letter-spacing:.2px}
+#head .ev{color:var(--muted)}#head .iota{font-size:30px;font-weight:700;margin:6px 0 2px}#head .lab{color:var(--muted)}
+#head .stats{margin-top:8px;color:var(--muted);font-size:13px}
+#ctl{top:14px;right:14px;width:220px}
+#ctl h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:0 0 8px;font-weight:600}
+#ctl label{display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer}
+.sw{width:22px;height:4px;border-radius:2px;display:inline-block}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 2px}
+button{background:#1A1E2B;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 9px;font:inherit;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--muted)}button.on{border-color:var(--track);color:var(--track)}
+#nav{bottom:14px;left:14px;display:flex;gap:8px;align-items:center}
+#nav a{color:var(--fg);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:5px 9px;background:#1A1E2B}
+#nav a:hover{border-color:var(--muted)}
+#hint{bottom:14px;right:14px;color:var(--muted);font-size:12px}
+#tip{position:fixed;pointer-events:none;display:none;font-size:13px;line-height:1.5;padding:8px 11px;min-width:190px}
+#tip b{color:var(--fg)}#tip .k{color:var(--muted)}
+@media (max-width:700px){#ctl{top:auto;bottom:60px;right:14px;width:auto;left:14px}#hint{display:none}#head .iota{font-size:24px}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="head" class="panel"><h1 id="exp"></h1><div class="ev" id="ev"></div><div class="iota" id="iota"></div><div class="stats" id="stats"></div></div>
+<div id="ctl" class="panel"><h2>Show</h2>
+<label><input type="checkbox" id="t_sel" checked><span class="sw" style="background:var(--track)"></span>selected tracks</label>
+<label><input type="checkbox" id="t_oth" checked><span class="sw" style="background:#5D6378"></span>unselected objects</label>
+<label><input type="checkbox" id="t_v0" checked><span class="sw" style="background:var(--v0)"></span>V⁰ daughters</label>
+<label><input type="checkbox" id="t_em" checked><span class="sw" style="background:var(--em)"></span>ECAL energy</label>
+<label><input type="checkbox" id="t_hc" checked><span class="sw" style="background:var(--hc)"></span>HCAL energy</label>
+<label><input type="checkbox" id="t_ax" checked><span class="sw" style="background:#ECECF2;opacity:.6"></span>sphericity axis</label>
+<label><input type="checkbox" id="t_hit"><span class="sw" style="background:#ECECF2;height:6px;width:6px;border-radius:3px;margin:0 8px"></span>layer crossings</label>
+<label><input type="checkbox" id="t_det" checked><span class="sw" style="background:#59607A"></span>detector</label>
+<h2 style="margin-top:12px">View</h2><div class="btns"><button id="v3d" class="on">3D</button><button id="vend">end</button><button id="vside">side</button><button id="vrot">spin</button></div><div style="color:var(--muted);font-size:12px;margin-top:6px">double-click: recentre</div></div>
+<div id="nav" class="panel"><a id="prev" href="#">← prev</a><a href="index.html">all events</a><a id="next" href="#">next →</a></div>
+<div id="hint" class="panel">drag to rotate · scroll to zoom · right-drag to pan · hover a track or tower for details</div>
+<div id="tip" class="panel"></div>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+const D=/*DATA*/;
+const arr=x=>Array.isArray(x)?x:[];
+const C={bg:0x07080C,track:0xB3A6FF,other:0x5D6378,v0:0x3FD2F2,em:0xFF4D9B,hc:0xFFB52E,det:0x59607A,ecal:0xFF4D9B,hcal:0xFFB52E,axis:0xECECF2};
+document.getElementById('ev').textContent=`run ${D.run} · event ${D.event}`;
+document.getElementById('exp').textContent=D.experiment;document.title=`${D.experiment}: run ${D.run}, event ${D.event}`;
+if(D.label)document.getElementById('iota').textContent=D.label;else document.getElementById('iota').style.display='none';
+document.getElementById('stats').textContent=`${D.nsel} selected tracks · ${D.nneu} neutral objects · ${D.nv0} V⁰ · ${D.evis.toFixed(1)} GeV visible`;
+if(D.prev)document.getElementById('prev').href=D.prev;else document.getElementById('prev').style.visibility='hidden';
+if(D.next)document.getElementById('next').href=D.next;else document.getElementById('next').style.visibility='hidden';
+const canvas=document.getElementById('c');
+const R=new THREE.WebGLRenderer({canvas,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setClearColor(C.bg);
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(35,1,1,20000);
+const ctl=new THREE.OrbitControls(cam,canvas);ctl.enableDamping=true;ctl.dampingFactor=.08;ctl.autoRotateSpeed=.8;ctl.minDistance=40;ctl.maxDistance=6000;ctl.zoomSpeed=.9;ctl.screenSpacePanning=true;
+// detector coordinates (cm): x, y, z (beam). Scene: X = beam, Y = y (up), Z = x.
+const V=(x,y,z)=>new THREE.Vector3(z,y,x);
+const groups={};for(const k of ['sel','oth','v0','em','hc','ax','det','hit'])groups[k]=new THREE.Group(),scene.add(groups[k]);
+// detector wireframe (geometry from the ALEPH detector paper, NIM A294 (1990) 121)
+const G=D.geom;
+function ring(r,z,n,rot,col,op){const pts=[];const N=n||128;for(let k=0;k<=N;k++){const a=(rot||0)+(n?Math.PI/n:0)+2*Math.PI*k/N;const rr=n?r/Math.cos(Math.PI/n):r;pts.push(V(rr*Math.cos(a),rr*Math.sin(a),z));}
+ return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op}));}
+function staves(r,z0,z1,n,rot,col,op){const g=new THREE.Group();const rr=r/Math.cos(Math.PI/n);for(let k=0;k<n;k++){const a=(rot||0)+Math.PI/n+2*Math.PI*k/n;
+ g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(rr*Math.cos(a),rr*Math.sin(a),z0),V(rr*Math.cos(a),rr*Math.sin(a),z1)]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op})));}return g;}
+function shell(r0,r1,z0,z1,n,rot,col,op){const g=new THREE.Group();for(const z of [z0,z1]){g.add(ring(r0,z,n,rot,col,op));g.add(ring(r1,z,n,rot,col,op));}g.add(staves(r1,z0,z1,n||24,rot,col,op*.6));return g;}
+const er=G.ecalrot*Math.PI/180;
+groups.det.add(shell(G.tpc[0],G.tpc[1],-G.tpc[2],G.tpc[2],0,0,C.det,.55));
+groups.det.add(shell(G.ecal[0],G.ecal[1],-G.ecal[2],G.ecal[2],12,er,C.ecal,.45));
+for(const s of [1,-1]){groups.det.add(ring(G.ecap[1],s*G.ecap[2],12,er+Math.PI/12,C.ecal,.35));groups.det.add(ring(G.ecap[0],s*G.ecap[2],0,0,C.ecal,.25));}
+groups.det.add(shell(G.coil[0],G.coil[1],-G.coil[2],G.coil[2],0,0,C.det,.25));
+groups.det.add(shell(G.hcal[0],G.hcal[1],-G.hcal[2],G.hcal[2],12,0,C.hcal,.35));
+for(const s of [1,-1]){groups.det.add(ring(G.hcap[1],s*G.hcap[3],12,0,C.hcal,.3));groups.det.add(ring(G.hcap[1],s*G.hcap[2],12,0,C.hcal,.2));}
+groups.det.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0,0,-600),V(0,0,600)]),new THREE.LineBasicMaterial({color:C.det,transparent:true,opacity:.8})));
+// tracks: tubes for selected and V⁰ daughters, thin lines for the others; each carries its record for the tooltip
+const pickable=[];
+for(const t of arr(D.tracks)){const pts=t.p.map(q=>V(q[0],q[1],q[2]));if(pts.length<2)continue;
+ const col=t.c==='v0'?C.v0:t.c==='oth'?C.other:C.track;
+ const curve=new THREE.CatmullRomCurve3(pts);
+ const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(8,pts.length*2),t.c==='oth'?.5:.9,6,false),new THREE.MeshBasicMaterial({color:col}));
+ mesh.userData={kind:t.c==='v0'?'V⁰ daughter track':t.c==='oth'?'track (not selected)':'selected track',info:t.i,color:col};
+ groups[t.c].add(mesh);pickable.push(mesh);
+ if(Array.isArray(t.h)&&t.h.length){const g=new THREE.BufferGeometry().setFromPoints(t.h.map(h=>V(h[0],h[1],h[2])));
+  groups.hit.add(new THREE.Points(g,new THREE.PointsMaterial({color:t.c==='oth'?0xA6ACBF:0xFFFFFF,size:3.5,sizeAttenuation:false,depthTest:false,transparent:true,opacity:.95})));}}
+groups.hit.visible=false;
+// With the crossings shown, the fitted tracks fade behind them (as DALI drew coordinates over the fit).
+function fadeTracks(on){for(const k of ['sel','v0','oth'])groups[k].traverse(o=>{if(o.isMesh){o.material.transparent=true;o.material.opacity=on?.35:1;}});}
+// calorimeter energy: towers along the cluster direction, length logarithmic in energy
+const up=new THREE.Vector3(0,1,0);
+for(const b of arr(D.bars)){const a=V(...b.a),e=V(...b.b);const d=new THREE.Vector3().subVectors(e,a);const L=d.length();if(L<=0)continue;
+ const w=b.k==='em'?5:9;const geo=new THREE.BoxGeometry(w,L,w);const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:b.k==='em'?C.em:C.hc,transparent:true,opacity:.92}));
+ mesh.position.copy(a).addScaledVector(d,.5);mesh.quaternion.setFromUnitVectors(up,d.clone().normalize());
+ if(b.u){mesh.material.color.set(C.other);mesh.material.opacity=.7;}
+ groups[b.u?'oth':b.k].add(mesh);
+ mesh.userData={kind:b.u?'ECAL cluster (neutral object failing the selection)':b.k==='em'?'ECAL cluster':'HCAL cluster',energy:b.e,color:b.u?C.other:(b.k==='em'?C.em:C.hc)};pickable.push(mesh);}
+for(const v of arr(D.v0)){const m=new THREE.Mesh(new THREE.OctahedronGeometry(3),new THREE.MeshBasicMaterial({color:C.v0}));m.position.copy(V(...v));groups.v0.add(m);}
+{const a=D.axis;const pts=[V(-560*a[0],-560*a[1],-560*a[2]),V(560*a[0],560*a[1],560*a[2])];
+ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:C.axis,dashSize:10,gapSize:8,transparent:true,opacity:.55}));l.computeLineDistances();groups.ax.add(l);}
+for(const k of Object.keys(groups)){const cb=document.getElementById('t_'+k);cb.addEventListener('change',()=>{groups[k].visible=cb.checked;if(k==='hit')fadeTracks(cb.checked);});}
+// Fit the whole detector to the window: the camera distance that makes a box of the given
+// half-width (horizontal) and half-height (vertical) just fit, for the current aspect ratio.
+const FIT={end:[560,560],side:[600,560],'3d':[720,600]};
+let current='3d';
+function fitDistance(hw,hh){const v=cam.fov*Math.PI/360;const hfov=Math.atan(Math.tan(v)*cam.aspect);return 1.08*Math.max(hh/Math.tan(v),hw/Math.tan(hfov));}
+function view(kind){current=kind;for(const b of ['v3d','vend','vside'])document.getElementById(b).classList.toggle('on',b==='v'+kind);
+ const [hw,hh]=FIT[kind];const dist=fitDistance(hw,hh);
+ const dir=kind==='end'?new THREE.Vector3(1,0,0):kind==='side'?new THREE.Vector3(0,0,1):new THREE.Vector3(-.62,.36,.70).normalize();
+ ctl.target.set(0,0,0);cam.up.set(0,1,0);cam.position.copy(dir.multiplyScalar(dist));cam.lookAt(0,0,0);ctl.update();}
+canvas.addEventListener('dblclick',()=>view(current));
+// hover details
+const tip=document.getElementById('tip'),ray=new THREE.Raycaster(),mouse=new THREE.Vector2();let hovered=null;
+const f=(x,u='')=>x===null||x===undefined?'–':x+u;
+function describe(u){if(u.energy!==undefined)return `<b>${u.kind}</b><br><span class="k">energy</span> ${u.energy.toFixed(2)} GeV`;
+ const i=u.info;return `<b>${u.kind}</b><br><span class="k">p</span> ${f(i.p,' GeV')} &nbsp; <span class="k">pₜ</span> ${f(i.pt,' GeV')} &nbsp; <span class="k">q</span> ${i.q>0?'+':i.q<0?'−':'0'}<br>`+
+  `<span class="k">cos θ</span> ${f(i.cth)}<br><span class="k">hits VDET / ITC / TPC</span> ${i.hits.join(' / ')}<br>`+
+  `<span class="k">d₀, z₀</span> ${f(i.d0,' cm')}, ${f(i.z0,' cm')}<br><span class="k">χ² / ndf</span> ${f(i.chi2)} / ${i.ndf}<br>`+
+  `<span class="k">dE/dx (pads)</span> ${f(i.dedx)}${i.dedxerr!==null?' ± '+i.dedxerr:''}<br><span class="k">dE/dx (wires)</span> ${f(i.dedxw)}`;}
+canvas.addEventListener('pointermove',e=>{mouse.x=e.clientX/innerWidth*2-1;mouse.y=-e.clientY/innerHeight*2+1;ray.setFromCamera(mouse,cam);
+ const hit=ray.intersectObjects(pickable.filter(o=>o.parent.visible),false)[0];
+ if(hovered&&(!hit||hit.object!==hovered)){hovered.material.color.set(hovered.userData.color||hovered.material.color);hovered=null;}
+ if(hit){const o=hit.object;if(o!==hovered&&o.userData.color){o.material.color.set(0xFFFFFF);hovered=o;}
+  tip.innerHTML=describe(o.userData);tip.style.display='block';
+  const x=Math.min(e.clientX+16,innerWidth-tip.offsetWidth-8),y=Math.min(e.clientY+16,innerHeight-tip.offsetHeight-8);tip.style.left=x+'px';tip.style.top=y+'px';}
+ else tip.style.display='none';});
+canvas.addEventListener('pointerleave',()=>{tip.style.display='none';});
+document.getElementById('v3d').onclick=()=>view('3d');document.getElementById('vend').onclick=()=>view('end');document.getElementById('vside').onclick=()=>view('side');
+const rb=document.getElementById('vrot');rb.onclick=()=>{ctl.autoRotate=!ctl.autoRotate;rb.classList.toggle('on',ctl.autoRotate);};
+function resize(){const w=innerWidth,h=innerHeight;R.setSize(w,h,true);cam.aspect=w/h;cam.updateProjectionMatrix();}
+addEventListener('resize',()=>{resize();});resize();view('3d');
+(function loop(){requestAnimationFrame(loop);ctl.update();R.render(scene,cam);})();
+</script></body></html>

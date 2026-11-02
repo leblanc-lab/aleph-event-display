@@ -1,0 +1,6 @@
+Manifest.toml
+edisplay_out/
+*.so
+*.d
+*.pcm
+*_ACLiC_dict*

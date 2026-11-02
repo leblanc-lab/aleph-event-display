@@ -1,0 +1,37 @@
+# Settings of edisplay.jl. Copy this file and pass it with --config to change any of them.
+
+[display]
+experiment = "ALEPH, e⁺e⁻, 91.2 GeV"   # header of every display
+bfield = 1.5                          # solenoid field [T]
+
+# Tracks drawn as "selected" (bold); all other tracks are drawn thin and grey.
+[tracks]
+pt_min = 0.2              # GeV
+abs_costheta_max = 0.94
+tpc_hits_min = 4
+abs_d0_max = 2.0          # cm
+abs_z0_max = 10.0         # cm
+
+# ECAL clusters of neutral particles failing this selection are drawn as "unselected" in the
+# interactive pages.
+[neutrals]
+energy_min = 0.4          # GeV
+abs_costheta_max = 0.98
+
+# V⁰ candidates drawn (vertex marker, daughters in cyan): fitted vertex quality and displacement,
+# then a K⁰S (ππ) or Λ (pπ) mass window and pointing back to the beam spot.
+[v0]
+chi2_max = 10.0
+rxy_min = 1.0             # cm
+pointing_cos_min = 0.995
+k0s_window = 0.020        # GeV
+lambda_window = 0.006     # GeV
+
+# Track-state conventions of the ALEPH EDM4HEP files, found from V⁰ daughters passing through their
+# decay vertex in 1994 data. `edisplay.jl --calibrate` re-derives them from the displayed events.
+[conventions]
+omega_per_cm = 1.0        # 1/ω is in cm
+omega_sign = -1           # sign(ω) = omega_sign × charge
+d0_sign = -1              # point of closest approach at d0_sign·d0·(−sin φ0, cos φ0) from the reference point
+curvature_side = 1
+v0_links = "particles"    # V0Vertices.particles index "particles" (RecoParticles) or "tracks" (Tracks)
