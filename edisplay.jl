@@ -47,7 +47,7 @@ function rootexe()
     haskey(ENV, "ROOTSYS") && isfile(joinpath(ENV["ROOTSYS"], "bin", "root")) && return joinpath(ENV["ROOTSYS"], "bin", "root")
     error("ROOT not found: put root on PATH, set ROOTSYS, or pass --root")
 end
-runroot(macro, args...) = read(pipeline(`$(rootexe()) -l -b -q $(joinpath(@__DIR__, "src", macro) * "(" * join(("\"$x\"" for x in args), ",") * ")")`; stdin=devnull), String)
+runroot(mac, args...) = read(pipeline(`$(rootexe()) -l -b -q $(joinpath(@__DIR__, "src", mac) * "(" * join(("\"$x\"" for x in args), ",") * ")")`; stdin=devnull), String)
 inputs() = [f for p in a["file"] for f in (isdir(p) ? sort(filter(endswith(".root"), readdir(p; join=true))) : [p])]
 key(file, entry) = replace(basename(file), r"\.root$" => "") * "_$entry"
 
@@ -60,8 +60,7 @@ if !isempty(a["events"])
     end
 elseif !isempty(a["entry"])
     length(inputs()) == 1 || error("--entry needs exactly one --file")
-    f = only(inputs())
-    for e in split(a["entry"], ','); push!(events, (key=key(f, e), file=f, entry=parse(Int, e), label=a["label"])); end
+    for e in split(a["entry"], ','); push!(events, (key=key(only(inputs()), e), file=only(inputs()), entry=parse(Int, e), label=a["label"])); end
 elseif !isempty(a["event"])
     files = inputs(); isempty(files) && error("--event needs --file inputs to search")
     list = joinpath(JSONDIR, "locate_files.txt"); write(list, join(files, "\n") * "\n")
@@ -73,7 +72,7 @@ elseif !isempty(a["event"])
     end
     for w in split(a["event"], ',')
         haskey(found, w) || (@warn "event $w not found in the --file inputs"; continue)
-        f, e = found[w]; push!(events, (key=key(f, e), file=f, entry=e, label=a["label"]))
+        push!(events, (key=key(found[w]...), file=found[w][1], entry=found[w][2], label=a["label"]))
     end
 else
     error("say which events to draw: --file with --entry or --event, or --events")
@@ -639,6 +638,6 @@ $rows
     @info "interactive pages: $(joinpath(dir, "index.html"))"
 end
 
-names = [draw_event(d, T, V, ev.entry, ev.label) for (ev, d, T, V) in zip(events, data, alltracks, allv0)]
-a["no-html"] || finish_html(joinpath(OUT, "html"), unique(names))
-@info "done: $(length(names)) event(s) in $OUT"
+drawn = [draw_event(d, T, V, ev.entry, ev.label) for (ev, d, T, V) in zip(events, data, alltracks, allv0)]
+a["no-html"] || finish_html(joinpath(OUT, "html"), unique(drawn))
+@info "done: $(length(drawn)) event(s) in $OUT"
