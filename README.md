@@ -1,5 +1,13 @@
 # ALEPH event displays from EDM4HEP
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/example_dark.png">
+  <img alt="End, side and 3D views of a hadronic Z decay recorded by ALEPH in 1994 (run 29614, event 2192)" src="docs/example_light.png">
+</picture>
+
+**[Live demo of the interactive displays](https://leblanc-lab.github.io/aleph-event-display/)**: seven 1994 events, from
+two-jet-like to spherical.
+
 Detector-level displays of ALEPH events read from EDM4HEP (podio) ROOT files:
 
 - **end view** (x–y): DALI-style fish-eye radial scale, ECAL and HCAL energy as histograms outside each calorimeter;
@@ -100,4 +108,5 @@ files of the right run period rather than a whole year.
 | `src/edm4hep_locate.C` | ROOT macro: finds run:event pairs in a list of files |
 | `src/viewer3d.html` | template of the interactive page |
 | `src/vendor/` | three.js r128 and OrbitControls (MIT licence) |
+| `docs/` | the example images above |
 | `config/default.toml` | selections, conventions, header text |
