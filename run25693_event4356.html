@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ALEPH event display</title>
+<style>
+:root{--bg:#07080C;--fg:#ECECF2;--muted:#80869A;--panel:rgba(16,18,26,.82);--line:#2A2F40;--track:#B3A6FF;--v0:#3FD2F2;--em:#FF4D9B;--hc:#FFB52E}
+*{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+#c{position:fixed;top:0;left:0;width:100vw;height:100vh;display:block;touch-action:none}
+.panel{position:fixed;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;backdrop-filter:blur(6px)}
+#head{top:14px;left:14px;max-width:min(440px,calc(100vw - 28px))}
+#head h1{font-size:16px;margin:0 0 2px;font-weight:700;letter-spacing:.2px}
+#head .ev{color:var(--muted)}#head .iota{font-size:30px;font-weight:700;margin:6px 0 2px}#head .lab{color:var(--muted)}
+#head .stats{margin-top:8px;color:var(--muted);font-size:13px}
+#ctl{top:14px;right:14px;width:220px}
+#ctl h2{font-size:12px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin:0 0 8px;font-weight:600}
+#ctl label{display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer}
+.sw{width:22px;height:4px;border-radius:2px;display:inline-block}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 2px}
+button{background:#1A1E2B;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:5px 9px;font:inherit;font-size:13px;cursor:pointer}
+button:hover{border-color:var(--muted)}button.on{border-color:var(--track);color:var(--track)}
+#nav{bottom:14px;left:14px;display:flex;gap:8px;align-items:center}
+#nav a{color:var(--fg);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:5px 9px;background:#1A1E2B}
+#nav a:hover{border-color:var(--muted)}
+#hint{bottom:14px;right:14px;color:var(--muted);font-size:12px}
+#tip{position:fixed;pointer-events:none;display:none;font-size:13px;line-height:1.5;padding:8px 11px;min-width:190px}
+#tip b{color:var(--fg)}#tip .k{color:var(--muted)}
+@media (max-width:700px){#ctl{top:auto;bottom:60px;right:14px;width:auto;left:14px}#hint{display:none}#head .iota{font-size:24px}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="head" class="panel"><h1 id="exp"></h1><div class="ev" id="ev"></div><div class="iota" id="iota"></div><div class="stats" id="stats"></div></div>
+<div id="ctl" class="panel"><h2>Show</h2>
+<label><input type="checkbox" id="t_sel" checked><span class="sw" style="background:var(--track)"></span>selected tracks</label>
+<label><input type="checkbox" id="t_oth" checked><span class="sw" style="background:#5D6378"></span>unselected objects</label>
+<label><input type="checkbox" id="t_v0" checked><span class="sw" style="background:var(--v0)"></span>V⁰ daughters</label>
+<label><input type="checkbox" id="t_em" checked><span class="sw" style="background:var(--em)"></span>ECAL energy</label>
+<label><input type="checkbox" id="t_hc" checked><span class="sw" style="background:var(--hc)"></span>HCAL energy</label>
+<label><input type="checkbox" id="t_ax" checked><span class="sw" style="background:#ECECF2;opacity:.6"></span>sphericity axis</label>
+<label><input type="checkbox" id="t_hit"><span class="sw" style="background:#ECECF2;height:6px;width:6px;border-radius:3px;margin:0 8px"></span>layer crossings</label>
+<label><input type="checkbox" id="t_det" checked><span class="sw" style="background:#59607A"></span>detector</label>
+<h2 style="margin-top:12px">View</h2><div class="btns"><button id="v3d" class="on">3D</button><button id="vend">end</button><button id="vside">side</button><button id="vrot">spin</button></div><div style="color:var(--muted);font-size:12px;margin-top:6px">double-click: recentre</div></div>
+<div id="nav" class="panel"><a id="prev" href="#">← prev</a><a href="index.html">all events</a><a id="next" href="#">next →</a></div>
+<div id="hint" class="panel">drag to rotate · scroll to zoom · right-drag to pan · hover a track or tower for details</div>
+<div id="tip" class="panel"></div>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+const D={"axis":[0.6582036879422347,0.027219670577726673,0.7523476554844053],"bars":[{"a":[184.6,-5.4,224.4],"b":[190.7,-5.6,231.7],"e":0.76,"k":"em","u":false},{"a":[183.3,-22.9,212.5],"b":[199.1,-24.9,230.9],"e":3.23,"k":"em","u":false},{"a":[177.0,3.0,240.0],"b":[179.0,3.0,242.7],"e":0.2,"k":"em","u":false},{"a":[184.4,10.9,210.1],"b":[223.4,13.2,254.5],"e":32.21,"k":"em","u":false},{"a":[182.8,26.5,227.4],"b":[187.5,27.2,233.3],"e":0.56,"k":"em","u":true},{"a":[180.8,37.5,221.9],"b":[182.9,38.0,224.4],"e":0.16,"k":"em","u":false},{"a":[112.0,137.0,240.0],"b":[113.9,139.2,244.0],"e":0.34,"k":"em","u":false},{"a":[-184.7,-3.9,-211.3],"b":[-226.3,-4.8,-259.0],"e":41.57,"k":"em","u":false},{"a":[183.7,-19.6,178.2],"b":[186.7,-19.9,181.1],"e":0.28,"k":"em","u":false},{"a":[-184.2,-5.7,-240.0],"b":[-186.2,-5.7,-242.6],"e":0.22,"k":"em","u":false},{"a":[-121.8,-138.8,-240.0],"b":[-125.7,-143.3,-247.7],"e":0.78,"k":"em","u":false},{"a":[296.8,9.7,283.0],"b":[332.3,10.9,316.8],"e":1.9,"k":"hc","u":false},{"a":[270.5,-122.6,323.8],"b":[278.5,-126.2,333.4],"e":0.33,"k":"hc","u":false},{"a":[295.6,-29.1,323.8],"b":[305.9,-30.1,335.2],"e":0.4,"k":"hc","u":false},{"a":[293.0,-48.4,194.5],"b":[302.4,-49.9,200.7],"e":0.28,"k":"hc","u":false},{"a":[-296.3,20.4,-264.1],"b":[-314.7,21.7,-280.5],"e":0.71,"k":"hc","u":false},{"a":[-284.2,86.2,-316.9],"b":[-292.3,88.7,-326.0],"e":0.31,"k":"hc","u":false},{"a":[-296.2,-22.3,-324.3],"b":[-310.6,-23.4,-340.2],"e":0.59,"k":"hc","u":false}],"event":4356,"evis":101.38686551600001,"experiment":"ALEPH, e⁺e⁻, 91.2 GeV","geom":{"coil":[248.0,292.0,350.0],"ecal":[184.7,225.4,235.0],"ecalrot":-1.875,"ecap":[54.0,234.8,240.0,296.25],"hcal":[297.0,468.5,362.0],"hcap":[45.0,435.0,362.0,480.0],"itc":[12.8,28.5,100.0],"lcal":[10.0,52.0,266.8,302.2],"mu":[478.0,528.0],"pipe":7.8,"tpc":[31.0,180.0,235.0]},"label":"","name":"run25693_event4356","next":"run30340_event5658.html","nneu":9,"nsel":5,"nv0":0,"prev":"","run":25693,"tracks":[{"c":"sel","h":[[-6.3,-0.2,-7.3,1.0],[-16.0,-0.6,-18.4,2.0],[-17.4,-0.7,-20.0,2.0],[-18.8,-0.7,-21.6,2.0],[-20.3,-0.8,-23.3,2.0],[-21.7,-0.8,-24.9,2.0],[-23.1,-0.9,-26.5,2.0],[-39.9,-1.5,-45.7,3.0],[-45.8,-1.7,-52.5,3.0],[-51.8,-1.9,-59.3,3.0],[-57.7,-2.1,-66.1,3.0],[-63.7,-2.3,-72.9,3.0],[-69.7,-2.5,-79.7,3.0],[-75.6,-2.7,-86.5,3.0],[-81.6,-2.9,-93.3,3.0],[-87.5,-3.0,-100.1,3.0],[-102.9,-3.5,-117.7,3.0],[-109.2,-3.7,-124.9,3.0],[-115.5,-3.8,-132.1,3.0],[-121.8,-3.9,-139.3,3.0],[-128.1,-4.1,-146.5,3.0],[-134.4,-4.2,-153.7,3.0],[-140.7,-4.4,-160.9,3.0],[-147.0,-4.5,-168.1,3.0],[-153.3,-4.6,-175.3,3.0],[-159.6,-4.7,-182.5,3.0],[-165.9,-4.9,-189.7,3.0],[-172.2,-5.0,-196.8,3.0]],"i":{"chi2":27.0,"cth":-0.752,"d0":0.026,"dedx":2.037,"dedxerr":0.153,"dedxw":1.633,"hits":[1,6,21],"ndf":45,"p":45.57,"pt":30.03,"q":1,"z0":-0.11},"p":[[-0.0,0.0,-0.1],[-35.1,-1.4,-40.2],[-70.1,-2.5,-80.2],[-105.2,-3.6,-120.3],[-140.2,-4.4,-160.3],[-175.3,-5.0,-200.4]]},{"c":"sel","h":[[6.3,0.3,7.1,1.0],[39.9,1.8,45.5,3.0],[45.8,2.1,52.3,3.0],[51.8,2.4,59.1,3.0],[57.7,2.7,65.9,3.0],[63.7,3.0,72.8,3.0],[69.6,3.3,79.6,3.0],[75.6,3.6,86.4,3.0],[81.5,3.9,93.2,3.0],[87.5,4.3,100.0,3.0],[102.9,5.1,117.6,3.0],[109.2,5.5,124.8,3.0],[115.5,5.9,132.0,3.0],[121.7,6.2,139.2,3.0],[128.0,6.6,146.4,3.0],[134.3,7.0,153.6,3.0],[140.6,7.4,160.8,3.0],[146.9,7.8,168.0,3.0],[153.2,8.2,175.2,3.0],[159.5,8.7,182.4,3.0]],"i":{"chi2":29.6,"cth":0.753,"d0":-0.027,"dedx":1.884,"dedxerr":0.145,"dedxw":1.602,"hits":[1,0,20],"ndf":37,"p":41.91,"pt":27.59,"q":-1,"z0":-0.11},"p":[[-0.0,0.0,-0.1],[32.1,1.4,36.6],[64.2,3.0,73.4],[96.4,4.7,110.2],[128.5,6.6,146.9],[160.6,8.7,183.7]]},{"c":"sel","h":[[16.0,0.6,17.9,2.0],[17.4,0.7,19.6,2.0],[39.9,1.0,45.4,3.0],[45.9,1.0,52.2,3.0],[51.8,0.8,59.1,3.0],[57.8,0.6,66.0,3.0],[63.7,0.3,72.8,3.0],[69.7,-0.0,79.7,3.0],[75.7,-0.4,86.5,3.0],[81.6,-0.9,93.4,3.0],[87.6,-1.5,100.3,3.0],[102.9,-3.2,118.1,3.0],[109.2,-4.1,125.3,3.0],[115.5,-5.0,132.6,3.0],[121.8,-6.0,139.9,3.0]],"i":{"chi2":23.0,"cth":0.754,"d0":0.242,"dedx":1.92,"dedxerr":0.163,"dedxw":null,"hits":[0,2,13],"ndf":23,"p":3.55,"pt":2.33,"q":1,"z0":-0.458},"p":[[0.0,-0.2,-0.5],[2.7,-0.1,2.7],[5.4,0.1,5.8],[8.1,0.3,8.9],[10.9,0.4,12.0],[13.6,0.5,15.1],[16.3,0.7,18.3],[19.0,0.8,21.4],[21.7,0.8,24.5],[24.4,0.9,27.6],[27.1,1.0,30.7],[29.8,1.0,33.9],[32.6,1.0,37.0],[35.3,1.1,40.1],[38.0,1.1,43.2],[40.7,1.0,46.3],[43.4,1.0,49.4],[46.1,1.0,52.6],[48.8,0.9,55.7],[51.6,0.8,58.8],[54.3,0.8,61.9],[57.0,0.7,65.0],[59.7,0.5,68.2],[62.4,0.4,71.3],[65.1,0.3,74.4],[67.8,0.1,77.5],[70.5,-0.1,80.6],[73.3,-0.2,83.8],[76.0,-0.4,86.9],[78.7,-0.7,90.0],[81.4,-0.9,93.1],[84.1,-1.1,96.2],[86.8,-1.4,99.4],[89.5,-1.6,102.5],[92.2,-1.9,105.6],[94.9,-2.2,108.7],[97.6,-2.5,111.8],[100.3,-2.9,114.9],[103.0,-3.2,118.1],[105.7,-3.6,121.2],[108.3,-3.9,124.3],[111.0,-4.3,127.4],[113.7,-4.7,130.5],[116.4,-5.1,133.7],[119.1,-5.6,136.8],[121.8,-6.0,139.9],[124.4,-6.4,143.0],[127.1,-6.9,146.1],[129.8,-7.4,149.3],[132.4,-7.9,152.4],[135.1,-8.4,155.5],[137.8,-8.9,158.6],[140.4,-9.5,161.7],[143.1,-10.0,164.8],[145.8,-10.6,168.0],[148.4,-11.2,171.1],[151.1,-11.7,174.2],[153.7,-12.4,177.3],[156.3,-13.0,180.4],[159.0,-13.6,183.6],[161.6,-14.3,186.7],[164.3,-14.9,189.8],[166.9,-15.6,192.9],[169.5,-16.3,196.0],[172.1,-17.0,199.2],[174.7,-17.7,202.3],[177.4,-18.4,205.4]]},{"c":"sel","h":[[-16.0,-0.7,-18.4,2.0],[-17.4,-0.9,-20.0,2.0],[-18.8,-1.0,-21.6,2.0],[-20.3,-1.1,-23.2,2.0],[-39.6,-4.9,-45.5,3.0],[-45.4,-6.6,-52.3,3.0],[-51.1,-8.6,-59.2,3.0],[-56.8,-10.8,-66.0,3.0],[-62.3,-13.4,-72.9,3.0],[-67.8,-16.2,-79.9,3.0],[-73.2,-19.3,-86.9,3.0],[-78.4,-22.6,-93.9,3.0],[-83.6,-26.3,-101.0,3.0],[-96.1,-37.0,-119.7,3.0],[-101.0,-41.9,-127.5,3.0],[-105.6,-47.1,-135.3,3.0],[-110.0,-52.6,-143.3,3.0],[-114.1,-58.5,-151.4,3.0],[-118.0,-64.6,-159.6,3.0],[-121.5,-71.1,-167.9,3.0],[-124.8,-77.9,-176.5,3.0],[-127.7,-85.0,-185.1,3.0],[-130.2,-92.4,-194.0,3.0],[-132.4,-100.2,-203.1,3.0]],"i":{"chi2":58.5,"cth":-0.748,"d0":-0.409,"dedx":2.049,"dedxerr":0.15,"dedxw":1.689,"hits":[0,4,20],"ndf":39,"p":0.89,"pt":0.59,"q":-1,"z0":-0.338},"p":[[-0.0,-0.4,-0.3],[-1.4,-0.4,-1.9],[-2.8,-0.3,-3.4],[-4.1,-0.3,-5.0],[-5.5,-0.3,-6.5],[-6.9,-0.3,-8.1],[-8.2,-0.3,-9.6],[-9.6,-0.4,-11.2],[-11.0,-0.4,-12.7],[-12.3,-0.5,-14.3],[-13.7,-0.6,-15.8],[-15.1,-0.7,-17.4],[-16.5,-0.8,-18.9],[-17.8,-0.9,-20.5],[-19.2,-1.0,-22.0],[-20.5,-1.2,-23.6],[-21.9,-1.3,-25.1],[-23.3,-1.5,-26.6],[-24.6,-1.7,-28.2],[-26.0,-1.9,-29.7],[-27.3,-2.2,-31.3],[-28.7,-2.4,-32.8],[-30.0,-2.6,-34.4],[-31.4,-2.9,-35.9],[-32.7,-3.2,-37.5],[-34.0,-3.5,-39.0],[-35.4,-3.8,-40.6],[-36.7,-4.1,-42.1],[-38.0,-4.4,-43.7],[-39.4,-4.8,-45.2],[-40.7,-5.2,-46.8],[-42.0,-5.5,-48.3],[-43.3,-5.9,-49.9],[-44.6,-6.3,-51.4],[-45.9,-6.7,-53.0],[-47.2,-7.2,-54.5],[-48.5,-7.6,-56.1],[-49.8,-8.1,-57.6],[-51.1,-8.6,-59.2],[-52.4,-9.0,-60.7],[-53.7,-9.5,-62.2],[-54.9,-10.1,-63.8],[-56.2,-10.6,-65.3],[-57.5,-11.1,-66.9],[-58.7,-11.7,-68.4],[-60.0,-12.2,-70.0],[-61.2,-12.8,-71.5],[-62.4,-13.4,-73.1],[-63.7,-14.0,-74.6],[-64.9,-14.6,-76.2],[-66.1,-15.3,-77.7],[-67.3,-15.9,-79.3],[-68.5,-16.6,-80.8],[-69.7,-17.2,-82.4],[-70.9,-17.9,-83.9],[-72.1,-18.6,-85.5],[-73.3,-19.3,-87.0],[-74.4,-20.0,-88.6],[-75.6,-20.8,-90.1],[-76.8,-21.5,-91.7],[-77.9,-22.3,-93.2],[-79.0,-23.0,-94.8],[-80.2,-23.8,-96.3],[-81.3,-24.6,-97.8],[-82.4,-25.4,-99.4],[-83.5,-26.2,-100.9],[-84.6,-27.0,-102.5],[-85.7,-27.9,-104.0],[-86.8,-28.7,-105.6],[-87.8,-29.6,-107.1],[-88.9,-30.5,-108.7],[-89.9,-31.3,-110.2],[-91.0,-32.2,-111.8],[-92.0,-33.1,-113.3],[-93.0,-34.0,-114.9],[-94.0,-35.0,-116.4],[-95.0,-35.9,-118.0],[-96.0,-36.9,-119.5],[-97.0,-37.8,-121.1],[-98.0,-38.8,-122.6],[-98.9,-39.7,-124.2],[-99.9,-40.7,-125.7],[-100.8,-41.7,-127.3],[-101.8,-42.7,-128.8],[-102.7,-43.8,-130.4],[-103.6,-44.8,-131.9],[-104.5,-45.8,-133.4],[-105.4,-46.9,-135.0],[-106.3,-47.9,-136.5],[-107.1,-49.0,-138.1],[-108.0,-50.0,-139.6],[-108.8,-51.1,-141.2],[-109.7,-52.2,-142.7],[-110.5,-53.3,-144.3],[-111.3,-54.4,-145.8],[-112.1,-55.5,-147.4],[-112.9,-56.7,-148.9],[-113.6,-57.8,-150.5],[-114.4,-58.9,-152.0],[-115.2,-60.1,-153.6],[-115.9,-61.2,-155.1],[-116.6,-62.4,-156.7],[-117.3,-63.6,-158.2],[-118.0,-64.7,-159.8],[-118.7,-65.9,-161.3],[-119.4,-67.1,-162.9],[-120.1,-68.3,-164.4],[-120.7,-69.5,-166.0],[-121.3,-70.7,-167.5],[-122.0,-72.0,-169.0],[-122.6,-73.2,-170.6],[-123.2,-74.4,-172.1],[-123.8,-75.7,-173.7],[-124.3,-76.9,-175.2],[-124.9,-78.2,-176.8],[-125.5,-79.4,-178.3],[-126.0,-80.7,-179.9],[-126.5,-81.9,-181.4],[-127.0,-83.2,-183.0],[-127.5,-84.5,-184.5],[-128.0,-85.8,-186.1],[-128.5,-87.1,-187.6],[-128.9,-88.4,-189.2],[-129.4,-89.7,-190.7],[-129.8,-91.0,-192.3],[-130.2,-92.3,-193.8],[-130.6,-93.6,-195.4],[-131.0,-94.9,-196.9],[-131.4,-96.2,-198.5],[-131.7,-97.5,-200.0],[-132.1,-98.9,-201.5],[-132.4,-100.2,-203.1],[-132.7,-101.5,-204.6],[-133.0,-102.9,-206.2],[-133.3,-104.2,-207.7],[-133.6,-105.5,-209.3],[-133.8,-106.9,-210.8],[-134.1,-108.2,-212.4],[-134.3,-109.6,-213.9],[-134.5,-110.9,-215.5],[-134.7,-112.3,-217.0],[-134.9,-113.7,-218.6]]},{"c":"sel","h":[[16.0,0.7,18.2,2.0],[17.4,0.7,19.8,2.0],[18.8,0.8,21.5,2.0],[39.7,3.7,45.8,3.0],[45.6,5.2,52.7,3.0],[51.3,7.0,59.7,3.0],[57.0,9.2,66.7,3.0],[62.7,11.7,73.8,3.0],[68.2,14.5,80.9,3.0],[73.6,17.7,88.1,3.0],[78.8,21.2,95.3,3.0],[84.0,25.0,102.7,3.0],[96.4,36.4,122.0,3.0],[101.0,41.7,130.2,3.0],[105.4,47.4,138.4,3.0],[109.6,53.5,146.9,3.0],[113.3,59.9,155.5,3.0],[116.7,66.8,164.3,3.0],[119.8,74.0,173.3,3.0],[122.3,81.7,182.6,3.0],[124.4,89.8,192.2,3.0],[125.9,98.3,202.1,3.0],[126.8,107.2,212.4,3.0]],"i":{"chi2":38.0,"cth":0.754,"d0":-1.512,"dedx":1.832,"dedxerr":0.157,"dedxw":1.824,"hits":[0,3,20],"ndf":38,"p":0.77,"pt":0.51,"q":-1,"z0":0.006},"p":[[0.2,1.5,0.0],[1.4,1.4,1.4],[2.5,1.2,2.7],[3.7,1.1,4.1],[4.9,1.0,5.5],[6.1,0.9,6.8],[7.3,0.9,8.2],[8.5,0.8,9.5],[9.6,0.7,10.9],[10.8,0.7,12.3],[12.0,0.7,13.6],[13.2,0.7,15.0],[14.4,0.7,16.4],[15.6,0.7,17.7],[16.7,0.7,19.1],[17.9,0.7,20.4],[19.1,0.8,21.8],[20.3,0.8,23.2],[21.5,0.9,24.5],[22.7,1.0,25.9],[23.9,1.1,27.3],[25.0,1.2,28.6],[26.2,1.3,30.0],[27.4,1.5,31.4],[28.6,1.6,32.7],[29.7,1.8,34.1],[30.9,2.0,35.4],[32.1,2.1,36.8],[33.3,2.3,38.2],[34.4,2.5,39.5],[35.6,2.8,40.9],[36.7,3.0,42.3],[37.9,3.2,43.6],[39.1,3.5,45.0],[40.2,3.8,46.3],[41.4,4.1,47.7],[42.5,4.3,49.1],[43.7,4.7,50.4],[44.8,5.0,51.8],[45.9,5.3,53.2],[47.1,5.6,54.5],[48.2,6.0,55.9],[49.3,6.4,57.2],[50.5,6.7,58.6],[51.6,7.1,60.0],[52.7,7.5,61.3],[53.8,7.9,62.7],[54.9,8.4,64.1],[56.0,8.8,65.4],[57.1,9.3,66.8],[58.2,9.7,68.1],[59.3,10.2,69.5],[60.4,10.7,70.9],[61.5,11.2,72.2],[62.5,11.7,73.6],[63.6,12.2,75.0],[64.7,12.7,76.3],[65.7,13.2,77.7],[66.8,13.8,79.0],[67.8,14.4,80.4],[68.9,14.9,81.8],[69.9,15.5,83.1],[70.9,16.1,84.5],[71.9,16.7,85.9],[73.0,17.3,87.2],[74.0,17.9,88.6],[75.0,18.6,90.0],[76.0,19.2,91.3],[76.9,19.9,92.7],[77.9,20.5,94.0],[78.9,21.2,95.4],[79.9,21.9,96.8],[80.8,22.6,98.1],[81.8,23.3,99.5],[82.7,24.0,100.9],[83.7,24.8,102.2],[84.6,25.5,103.6],[85.5,26.2,104.9],[86.4,27.0,106.3],[87.3,27.8,107.7],[88.2,28.5,109.0],[89.1,29.3,110.4],[90.0,30.1,111.8],[90.9,30.9,113.1],[91.7,31.7,114.5],[92.6,32.5,115.8],[93.4,33.4,117.2],[94.3,34.2,118.6],[95.1,35.1,119.9],[95.9,35.9,121.3],[96.7,36.8,122.7],[97.5,37.7,124.0],[98.3,38.5,125.4],[99.1,39.4,126.7],[99.9,40.3,128.1],[100.7,41.2,129.5],[101.4,42.1,130.8],[102.2,43.1,132.2],[102.9,44.0,133.6],[103.6,44.9,134.9],[104.3,45.9,136.3],[105.0,46.8,137.7],[105.7,47.8,139.0],[106.4,48.8,140.4],[107.1,49.7,141.7],[107.8,50.7,143.1],[108.4,51.7,144.5],[109.1,52.7,145.8],[109.7,53.7,147.2],[110.3,54.7,148.6],[110.9,55.7,149.9],[111.5,56.7,151.3],[112.1,57.8,152.6],[112.7,58.8,154.0],[113.3,59.8,155.4],[113.8,60.9,156.7],[114.4,61.9,158.1],[114.9,63.0,159.5],[115.5,64.1,160.8],[116.0,65.1,162.2],[116.5,66.2,163.5],[117.0,67.3,164.9],[117.4,68.4,166.3],[117.9,69.4,167.6],[118.4,70.5,169.0],[118.8,71.6,170.4],[119.3,72.7,171.7],[119.7,73.8,173.1],[120.1,75.0,174.4],[120.5,76.1,175.8],[120.9,77.2,177.2],[121.3,78.3,178.5],[121.6,79.4,179.9],[122.0,80.6,181.3],[122.3,81.7,182.6],[122.6,82.9,184.0],[123.0,84.0,185.3],[123.3,85.1,186.7],[123.6,86.3,188.1],[123.8,87.4,189.4],[124.1,88.6,190.8],[124.4,89.8,192.2],[124.6,90.9,193.5],[124.9,92.1,194.9],[125.1,93.2,196.3],[125.3,94.4,197.6],[125.5,95.6,199.0],[125.7,96.7,200.3],[125.8,97.9,201.7],[126.0,99.1,203.1],[126.1,100.3,204.4],[126.3,101.5,205.8],[126.4,102.6,207.2],[126.5,103.8,208.5],[126.6,105.0,209.9],[126.7,106.2,211.2],[126.8,107.4,212.6],[126.8,108.5,214.0],[126.9,109.7,215.3],[126.9,110.9,216.7],[126.9,112.1,218.1],[126.9,113.3,219.4]]}],"v0":[]};
+const arr=x=>Array.isArray(x)?x:[];
+const C={bg:0x07080C,track:0xB3A6FF,other:0x5D6378,v0:0x3FD2F2,em:0xFF4D9B,hc:0xFFB52E,det:0x59607A,ecal:0xFF4D9B,hcal:0xFFB52E,axis:0xECECF2};
+document.getElementById('ev').textContent=`run ${D.run} · event ${D.event}`;
+document.getElementById('exp').textContent=D.experiment;document.title=`${D.experiment}: run ${D.run}, event ${D.event}`;
+if(D.label)document.getElementById('iota').textContent=D.label;else document.getElementById('iota').style.display='none';
+document.getElementById('stats').textContent=`${D.nsel} selected tracks · ${D.nneu} neutral objects · ${D.nv0} V⁰ · ${D.evis.toFixed(1)} GeV visible`;
+if(D.prev)document.getElementById('prev').href=D.prev;else document.getElementById('prev').style.visibility='hidden';
+if(D.next)document.getElementById('next').href=D.next;else document.getElementById('next').style.visibility='hidden';
+const canvas=document.getElementById('c');
+const R=new THREE.WebGLRenderer({canvas,antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setClearColor(C.bg);
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(35,1,1,20000);
+const ctl=new THREE.OrbitControls(cam,canvas);ctl.enableDamping=true;ctl.dampingFactor=.08;ctl.autoRotateSpeed=.8;ctl.minDistance=40;ctl.maxDistance=6000;ctl.zoomSpeed=.9;ctl.screenSpacePanning=true;
+// detector coordinates (cm): x, y, z (beam). Scene: X = beam, Y = y (up), Z = x.
+const V=(x,y,z)=>new THREE.Vector3(z,y,x);
+const groups={};for(const k of ['sel','oth','v0','em','hc','ax','det','hit'])groups[k]=new THREE.Group(),scene.add(groups[k]);
+// detector wireframe (geometry from the ALEPH detector paper, NIM A294 (1990) 121)
+const G=D.geom;
+function ring(r,z,n,rot,col,op){const pts=[];const N=n||128;for(let k=0;k<=N;k++){const a=(rot||0)+(n?Math.PI/n:0)+2*Math.PI*k/N;const rr=n?r/Math.cos(Math.PI/n):r;pts.push(V(rr*Math.cos(a),rr*Math.sin(a),z));}
+ return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op}));}
+function staves(r,z0,z1,n,rot,col,op){const g=new THREE.Group();const rr=r/Math.cos(Math.PI/n);for(let k=0;k<n;k++){const a=(rot||0)+Math.PI/n+2*Math.PI*k/n;
+ g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(rr*Math.cos(a),rr*Math.sin(a),z0),V(rr*Math.cos(a),rr*Math.sin(a),z1)]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op})));}return g;}
+function shell(r0,r1,z0,z1,n,rot,col,op){const g=new THREE.Group();for(const z of [z0,z1]){g.add(ring(r0,z,n,rot,col,op));g.add(ring(r1,z,n,rot,col,op));}g.add(staves(r1,z0,z1,n||24,rot,col,op*.6));return g;}
+const er=G.ecalrot*Math.PI/180;
+groups.det.add(shell(G.tpc[0],G.tpc[1],-G.tpc[2],G.tpc[2],0,0,C.det,.55));
+groups.det.add(shell(G.ecal[0],G.ecal[1],-G.ecal[2],G.ecal[2],12,er,C.ecal,.45));
+for(const s of [1,-1]){groups.det.add(ring(G.ecap[1],s*G.ecap[2],12,er+Math.PI/12,C.ecal,.35));groups.det.add(ring(G.ecap[0],s*G.ecap[2],0,0,C.ecal,.25));}
+groups.det.add(shell(G.coil[0],G.coil[1],-G.coil[2],G.coil[2],0,0,C.det,.25));
+groups.det.add(shell(G.hcal[0],G.hcal[1],-G.hcal[2],G.hcal[2],12,0,C.hcal,.35));
+for(const s of [1,-1]){groups.det.add(ring(G.hcap[1],s*G.hcap[3],12,0,C.hcal,.3));groups.det.add(ring(G.hcap[1],s*G.hcap[2],12,0,C.hcal,.2));}
+groups.det.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0,0,-600),V(0,0,600)]),new THREE.LineBasicMaterial({color:C.det,transparent:true,opacity:.8})));
+// tracks: tubes for selected and V⁰ daughters, thin lines for the others; each carries its record for the tooltip
+const pickable=[];
+for(const t of arr(D.tracks)){const pts=t.p.map(q=>V(q[0],q[1],q[2]));if(pts.length<2)continue;
+ const col=t.c==='v0'?C.v0:t.c==='oth'?C.other:C.track;
+ const curve=new THREE.CatmullRomCurve3(pts);
+ const mesh=new THREE.Mesh(new THREE.TubeGeometry(curve,Math.max(8,pts.length*2),t.c==='oth'?.5:.9,6,false),new THREE.MeshBasicMaterial({color:col}));
+ mesh.userData={kind:t.c==='v0'?'V⁰ daughter track':t.c==='oth'?'track (not selected)':'selected track',info:t.i,color:col};
+ groups[t.c].add(mesh);pickable.push(mesh);
+ if(Array.isArray(t.h)&&t.h.length){const g=new THREE.BufferGeometry().setFromPoints(t.h.map(h=>V(h[0],h[1],h[2])));
+  groups.hit.add(new THREE.Points(g,new THREE.PointsMaterial({color:t.c==='oth'?0xA6ACBF:0xFFFFFF,size:3.5,sizeAttenuation:false,depthTest:false,transparent:true,opacity:.95})));}}
+groups.hit.visible=false;
+// With the crossings shown, the fitted tracks fade behind them (as DALI drew coordinates over the fit).
+function fadeTracks(on){for(const k of ['sel','v0','oth'])groups[k].traverse(o=>{if(o.isMesh){o.material.transparent=true;o.material.opacity=on?.35:1;}});}
+// calorimeter energy: towers along the cluster direction, length logarithmic in energy
+const up=new THREE.Vector3(0,1,0);
+for(const b of arr(D.bars)){const a=V(...b.a),e=V(...b.b);const d=new THREE.Vector3().subVectors(e,a);const L=d.length();if(L<=0)continue;
+ const w=b.k==='em'?5:9;const geo=new THREE.BoxGeometry(w,L,w);const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:b.k==='em'?C.em:C.hc,transparent:true,opacity:.92}));
+ mesh.position.copy(a).addScaledVector(d,.5);mesh.quaternion.setFromUnitVectors(up,d.clone().normalize());
+ if(b.u){mesh.material.color.set(C.other);mesh.material.opacity=.7;}
+ groups[b.u?'oth':b.k].add(mesh);
+ mesh.userData={kind:b.u?'ECAL cluster (neutral object failing the selection)':b.k==='em'?'ECAL cluster':'HCAL cluster',energy:b.e,color:b.u?C.other:(b.k==='em'?C.em:C.hc)};pickable.push(mesh);}
+for(const v of arr(D.v0)){const m=new THREE.Mesh(new THREE.OctahedronGeometry(3),new THREE.MeshBasicMaterial({color:C.v0}));m.position.copy(V(...v));groups.v0.add(m);}
+{const a=D.axis;const pts=[V(-560*a[0],-560*a[1],-560*a[2]),V(560*a[0],560*a[1],560*a[2])];
+ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineDashedMaterial({color:C.axis,dashSize:10,gapSize:8,transparent:true,opacity:.55}));l.computeLineDistances();groups.ax.add(l);}
+for(const k of Object.keys(groups)){const cb=document.getElementById('t_'+k);cb.addEventListener('change',()=>{groups[k].visible=cb.checked;if(k==='hit')fadeTracks(cb.checked);});}
+// Fit the whole detector to the window: the camera distance that makes a box of the given
+// half-width (horizontal) and half-height (vertical) just fit, for the current aspect ratio.
+const FIT={end:[560,560],side:[600,560],'3d':[720,600]};
+let current='3d';
+function fitDistance(hw,hh){const v=cam.fov*Math.PI/360;const hfov=Math.atan(Math.tan(v)*cam.aspect);return 1.08*Math.max(hh/Math.tan(v),hw/Math.tan(hfov));}
+function view(kind){current=kind;for(const b of ['v3d','vend','vside'])document.getElementById(b).classList.toggle('on',b==='v'+kind);
+ const [hw,hh]=FIT[kind];const dist=fitDistance(hw,hh);
+ const dir=kind==='end'?new THREE.Vector3(1,0,0):kind==='side'?new THREE.Vector3(0,0,1):new THREE.Vector3(-.62,.36,.70).normalize();
+ ctl.target.set(0,0,0);cam.up.set(0,1,0);cam.position.copy(dir.multiplyScalar(dist));cam.lookAt(0,0,0);ctl.update();}
+canvas.addEventListener('dblclick',()=>view(current));
+// hover details
+const tip=document.getElementById('tip'),ray=new THREE.Raycaster(),mouse=new THREE.Vector2();let hovered=null;
+const f=(x,u='')=>x===null||x===undefined?'–':x+u;
+function describe(u){if(u.energy!==undefined)return `<b>${u.kind}</b><br><span class="k">energy</span> ${u.energy.toFixed(2)} GeV`;
+ const i=u.info;return `<b>${u.kind}</b><br><span class="k">p</span> ${f(i.p,' GeV')} &nbsp; <span class="k">pₜ</span> ${f(i.pt,' GeV')} &nbsp; <span class="k">q</span> ${i.q>0?'+':i.q<0?'−':'0'}<br>`+
+  `<span class="k">cos θ</span> ${f(i.cth)}<br><span class="k">hits VDET / ITC / TPC</span> ${i.hits.join(' / ')}<br>`+
+  `<span class="k">d₀, z₀</span> ${f(i.d0,' cm')}, ${f(i.z0,' cm')}<br><span class="k">χ² / ndf</span> ${f(i.chi2)} / ${i.ndf}<br>`+
+  `<span class="k">dE/dx (pads)</span> ${f(i.dedx)}${i.dedxerr!==null?' ± '+i.dedxerr:''}<br><span class="k">dE/dx (wires)</span> ${f(i.dedxw)}`;}
+canvas.addEventListener('pointermove',e=>{mouse.x=e.clientX/innerWidth*2-1;mouse.y=-e.clientY/innerHeight*2+1;ray.setFromCamera(mouse,cam);
+ const hit=ray.intersectObjects(pickable.filter(o=>o.parent.visible),false)[0];
+ if(hovered&&(!hit||hit.object!==hovered)){hovered.material.color.set(hovered.userData.color||hovered.material.color);hovered=null;}
+ if(hit){const o=hit.object;if(o!==hovered&&o.userData.color){o.material.color.set(0xFFFFFF);hovered=o;}
+  tip.innerHTML=describe(o.userData);tip.style.display='block';
+  const x=Math.min(e.clientX+16,innerWidth-tip.offsetWidth-8),y=Math.min(e.clientY+16,innerHeight-tip.offsetHeight-8);tip.style.left=x+'px';tip.style.top=y+'px';}
+ else tip.style.display='none';});
+canvas.addEventListener('pointerleave',()=>{tip.style.display='none';});
+document.getElementById('v3d').onclick=()=>view('3d');document.getElementById('vend').onclick=()=>view('end');document.getElementById('vside').onclick=()=>view('side');
+const rb=document.getElementById('vrot');rb.onclick=()=>{ctl.autoRotate=!ctl.autoRotate;rb.classList.toggle('on',ctl.autoRotate);};
+function resize(){const w=innerWidth,h=innerHeight;R.setSize(w,h,true);cam.aspect=w/h;cam.updateProjectionMatrix();}
+addEventListener('resize',()=>{resize();});resize();view('3d');
+(function loop(){requestAnimationFrame(loop);ctl.update();R.render(scene,cam);})();
+</script></body></html>
